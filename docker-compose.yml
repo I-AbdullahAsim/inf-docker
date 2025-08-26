@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: insightface_postgres
+    environment:
+      POSTGRES_DB: insightface_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: insightface_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@insightface.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  backend:
+    image: meabdullah/face-recognition-web-app-backend:1.0.0
+    container_name: insightface_backend
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/insightface_db
+      - INSIGHTFACE_DATA_DIR=/app/data
+      - RECOG_LOGS_DIR=/app/recognition_logs
+      - REGISTER_FACE_URL=http://face-registration:8001/register-face
+      - TOKEN_EXPIRE_HOURS=12
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+    command: ["python", "main.py"]
+    restart: unless-stopped
+
+  face-registration:
+    image: meabdullah/face-recognition-web-app-registration:1.0.0
+    container_name: insightface_face_registration
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/insightface_db
+      - INSIGHTFACE_DATA_DIR=/app/data
+      - RECOG_LOGS_DIR=/app/recognition_logs
+    depends_on:
+      - postgres
+    ports:
+      - "8001:8001"
+    command: ["python", "register_face.py"]
+    restart: unless-stopped
+
+  frontend:
+    image: meabdullah/face-recognition-web-app-frontend:1.0.0
+    container_name: insightface_frontend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
